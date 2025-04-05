@@ -1,0 +1,87 @@
+body, html {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  height: 100%;
+  width: 100%;
+}
+
+#root {
+  height: 100vh;
+  width: 100vw;
+}
+
+.app {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.game-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+}
+
+.game-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  background-color: #1e293b;
+  color: white;
+}
+
+.game-content {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.game-canvas {
+  flex: 1;
+  background-color: #f8fafc;
+}
+
+.game-ui {
+  width: 16rem;
+  background-color: #f1f5f9;
+  padding: 1rem;
+  overflow-y: auto;
+  border-left: 1px solid #cbd5e1;
+}
+
+.resource-panel {
+  margin-bottom: 1rem;
+}
+
+.selection-info {
+  margin-top: auto;
+}
+
+.game-instructions {
+  margin-top: 1rem;
+  font-size: 0.875rem;
+}
+
+.game-instructions ul {
+  padding-left: 1.5rem;
+}
+
+/* Unit and building styles */
+.unit, .building {
+  position: absolute;
+  pointer-events: none;
+}
+
+.unit.selected, .building.selected {
+  outline: 2px solid #22c55e;
+}
+
+/* Resource styles */
+.resource {
+  position: absolute;
+  pointer-events: none;
+}
