@@ -10,6 +10,11 @@ import {
   UNIT_PROPERTIES,
   BUILDING_PROPERTIES
 } from '../../lib/game/constants';
+import { 
+  findPath, 
+  smoothPath, 
+  checkCollision 
+} from '../../lib/game/pathfinding';
 
 export interface Position {
   x: number;
@@ -34,6 +39,8 @@ export interface Unit {
   isHarvesting?: boolean;
   carryingResource?: number;
   moving?: boolean;
+  path?: Position[]; // Path for unit to follow
+  pathIndex?: number; // Current index in the path
 }
 
 export interface Building {
@@ -246,18 +253,33 @@ export const useGameState = () => {
 
   const moveUnit = useCallback((unitId: string, targetPosition: Position) => {
     setGameState(prev => {
-      const updatedUnits = prev.units.map(unit => {
-        if (unit.id === unitId) {
+      const unit = prev.units.find(u => u.id === unitId);
+      if (!unit) return prev;
+      
+      const path = findPath(
+        unit.position,
+        targetPosition,
+        prev.buildings,
+        prev.units,
+        unitId
+      );
+      
+      const smoothedPath = smoothPath(path);
+      
+      const updatedUnits = prev.units.map(u => {
+        if (u.id === unitId) {
           return {
-            ...unit,
+            ...u,
             targetPosition,
+            path: smoothedPath,
+            pathIndex: 0,
             targetUnit: undefined,
             targetBuilding: undefined,
             targetResource: undefined,
             isHarvesting: false,
           };
         }
-        return unit;
+        return u;
       });
       
       return {
@@ -331,7 +353,57 @@ export const useGameState = () => {
         const updatedUnits = prev.units.map(unit => {
           let updatedUnit = { ...unit };
           
-          if (unit.targetPosition) {
+          if (unit.path && unit.path.length > 0 && unit.pathIndex !== undefined) {
+            const currentWaypoint = unit.path[unit.pathIndex];
+            
+            const dx = currentWaypoint.x - unit.position.x;
+            const dy = currentWaypoint.y - unit.position.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            
+            if (distance < 0.5) {
+              if (unit.pathIndex >= unit.path.length - 1) {
+                updatedUnit = {
+                  ...updatedUnit,
+                  path: undefined,
+                  pathIndex: undefined,
+                  targetPosition: undefined,
+                  moving: false,
+                };
+              } else {
+                updatedUnit = {
+                  ...updatedUnit,
+                  pathIndex: unit.pathIndex + 1,
+                  moving: true,
+                };
+              }
+            } else {
+              const speed = UNIT_PROPERTIES[unit.type].speed * deltaTime;
+              const ratio = Math.min(speed / distance, 1);
+              
+              const newPosition = {
+                x: unit.position.x + dx * ratio,
+                y: unit.position.y + dy * ratio,
+              };
+              
+              const unitWithNewPosition = {
+                ...unit,
+                position: newPosition
+              };
+              
+              const hasCollision = checkCollision(
+                unitWithNewPosition,
+                prev.buildings,
+                prev.units.filter(u => u.id !== unit.id)
+              );
+              
+              updatedUnit = {
+                ...updatedUnit,
+                position: hasCollision ? unit.position : newPosition,
+                moving: true,
+              };
+            }
+          } 
+          else if (unit.targetPosition) {
             const dx = unit.targetPosition.x - unit.position.x;
             const dy = unit.targetPosition.y - unit.position.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
@@ -340,19 +412,32 @@ export const useGameState = () => {
               const speed = UNIT_PROPERTIES[unit.type].speed * deltaTime;
               const ratio = Math.min(speed / distance, 1);
               
+              const newPosition = {
+                x: unit.position.x + dx * ratio,
+                y: unit.position.y + dy * ratio,
+              };
+              
+              const unitWithNewPosition = {
+                ...unit,
+                position: newPosition
+              };
+              
+              const hasCollision = checkCollision(
+                unitWithNewPosition,
+                prev.buildings,
+                prev.units.filter(u => u.id !== unit.id)
+              );
+              
               updatedUnit = {
                 ...updatedUnit,
-                position: {
-                  x: unit.position.x + dx * ratio,
-                  y: unit.position.y + dy * ratio,
-                },
-                moving: true, // Set moving to true when unit is moving
+                position: hasCollision ? unit.position : newPosition,
+                moving: true,
               };
             } else {
               updatedUnit = {
                 ...updatedUnit,
                 targetPosition: undefined,
-                moving: false, // Set moving to false when unit stops
+                moving: false,
               };
             }
           }
