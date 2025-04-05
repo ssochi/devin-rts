@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
+import React, { useRef, useEffect, forwardRef, useImperativeHandle, useState } from 'react';
 import { 
   CANVAS_WIDTH, 
   CANVAS_HEIGHT, 
@@ -22,6 +22,7 @@ interface GameCanvasProps {
 const GameCanvas = forwardRef<HTMLCanvasElement, GameCanvasProps>(
   ({ gameState, onUnitSelect, onBuildingSelect, onUnitMove, onAttack, onHarvest }, ref) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    const [animationTime, setAnimationTime] = useState(0);
     
     useImperativeHandle(ref, () => canvasRef.current as HTMLCanvasElement);
     
@@ -29,26 +30,49 @@ const GameCanvas = forwardRef<HTMLCanvasElement, GameCanvasProps>(
       const canvas = canvasRef.current;
       if (!canvas) return;
       
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
+      canvas.width = CANVAS_WIDTH;
+      canvas.height = CANVAS_HEIGHT;
       
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      let lastTimestamp = 0;
+      let animationFrameId: number;
       
-      drawGrid(ctx);
+      const renderLoop = (timestamp: number) => {
+        const deltaTime = lastTimestamp ? (timestamp - lastTimestamp) / 1000 : 0.016;
+        lastTimestamp = timestamp;
+        
+        setAnimationTime(prevTime => prevTime + deltaTime);
+        
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        drawGrid(ctx);
+        
+        const resourcePulse = Math.sin(animationTime * 2) * 0.2 + 0.8;
+        
+        gameState.resourceNodes.forEach(resource => {
+          drawResource(ctx, resource, resourcePulse);
+        });
+        
+        gameState.buildings.forEach(building => {
+          drawBuilding(ctx, building);
+        });
+        
+        gameState.units.forEach(unit => {
+          const unitBobOffset = Math.sin(animationTime * 3 + unit.id.charCodeAt(0)) * 2;
+          drawUnit(ctx, unit, unitBobOffset);
+        });
+        
+        animationFrameId = requestAnimationFrame(renderLoop);
+      };
       
-      gameState.resourceNodes.forEach(resource => {
-        drawResource(ctx, resource);
-      });
+      animationFrameId = requestAnimationFrame(renderLoop);
       
-      gameState.buildings.forEach(building => {
-        drawBuilding(ctx, building);
-      });
-      
-      gameState.units.forEach(unit => {
-        drawUnit(ctx, unit);
-      });
-      
-    }, [gameState]);
+      return () => {
+        cancelAnimationFrame(animationFrameId);
+      };
+    }, [gameState, animationTime]);
     
     const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
       const canvas = canvasRef.current;
@@ -135,7 +159,11 @@ const GameCanvas = forwardRef<HTMLCanvasElement, GameCanvasProps>(
     };
     
     const drawGrid = (ctx: CanvasRenderingContext2D) => {
-      ctx.strokeStyle = COLORS.GRID;
+      const terrainPattern = createTerrainPattern(ctx);
+      ctx.fillStyle = terrainPattern || '#e5e7eb';
+      ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+      
+      ctx.strokeStyle = 'rgba(236, 240, 241, 0.3)';
       ctx.lineWidth = 0.5;
       
       for (let x = 0; x <= CANVAS_WIDTH; x += GRID_SIZE) {
@@ -151,11 +179,69 @@ const GameCanvas = forwardRef<HTMLCanvasElement, GameCanvasProps>(
         ctx.lineTo(CANVAS_WIDTH, y);
         ctx.stroke();
       }
+      
+      addTerrainDetails(ctx);
     };
     
-    const drawUnit = (ctx: CanvasRenderingContext2D, unit: Unit) => {
+    const createTerrainPattern = (ctx: CanvasRenderingContext2D) => {
+      const patternCanvas = document.createElement('canvas');
+      const patternCtx = patternCanvas.getContext('2d');
+      
+      if (!patternCtx) return null;
+      
+      const size = GRID_SIZE * 4;
+      patternCanvas.width = size;
+      patternCanvas.height = size;
+      
+      patternCtx.fillStyle = '#d2d6bc';
+      patternCtx.fillRect(0, 0, size, size);
+      
+      for (let i = 0; i < 20; i++) {
+        const x = Math.random() * size;
+        const y = Math.random() * size;
+        const radius = Math.random() * GRID_SIZE / 4 + GRID_SIZE / 8;
+        
+        patternCtx.fillStyle = Math.random() > 0.5 ? '#c4c8b0' : '#dfe3c8';
+        patternCtx.beginPath();
+        patternCtx.arc(x, y, radius, 0, Math.PI * 2);
+        patternCtx.fill();
+      }
+      
+      return ctx.createPattern(patternCanvas, 'repeat');
+    };
+    
+    const addTerrainDetails = (ctx: CanvasRenderingContext2D) => {
+      const detailsCount = 15;
+      
+      for (let i = 0; i < detailsCount; i++) {
+        const x = Math.random() * CANVAS_WIDTH;
+        const y = Math.random() * CANVAS_HEIGHT;
+        const size = Math.random() * GRID_SIZE / 2 + GRID_SIZE / 4;
+        
+        if (x > CANVAS_WIDTH / 2 - GRID_SIZE * 5 && 
+            x < CANVAS_WIDTH / 2 + GRID_SIZE * 5 && 
+            y > CANVAS_HEIGHT / 2 - GRID_SIZE * 5 && 
+            y < CANVAS_HEIGHT / 2 + GRID_SIZE * 5) {
+          continue;
+        }
+        
+        ctx.fillStyle = Math.random() > 0.7 ? '#a3a697' : '#b8bba9';
+        
+        if (Math.random() > 0.7) {
+          ctx.beginPath();
+          ctx.arc(x, y, size / 2, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          ctx.beginPath();
+          ctx.ellipse(x, y, size, size / 2, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    };
+    
+    const drawUnit = (ctx: CanvasRenderingContext2D, unit: Unit, bobOffset: number = 0) => {
       const x = unit.position.x * GRID_SIZE;
-      const y = unit.position.y * GRID_SIZE;
+      const y = unit.position.y * GRID_SIZE - bobOffset; // Apply vertical bobbing animation
       
       ctx.fillStyle = unit.selected ? COLORS.SELECTED : COLORS.PLAYER;
       ctx.strokeStyle = '#000';
@@ -227,11 +313,14 @@ const GameCanvas = forwardRef<HTMLCanvasElement, GameCanvasProps>(
           ctx.stroke();
           
           ctx.fillStyle = '#333';
-          ctx.fillRect(x - tankWidth/2 - GRID_SIZE/10, y - tankHeight/3, tankWidth + GRID_SIZE/5, tankHeight/4);
-          ctx.strokeRect(x - tankWidth/2 - GRID_SIZE/10, y - tankHeight/3, tankWidth + GRID_SIZE/5, tankHeight/4);
           
-          ctx.fillRect(x - tankWidth/2 - GRID_SIZE/10, y + tankHeight/3 - tankHeight/4, tankWidth + GRID_SIZE/5, tankHeight/4);
-          ctx.strokeRect(x - tankWidth/2 - GRID_SIZE/10, y + tankHeight/3 - tankHeight/4, tankWidth + GRID_SIZE/5, tankHeight/4);
+          const treadOffset = unit.moving ? Math.sin(Date.now() / 100) * (GRID_SIZE/15) : 0;
+          
+          ctx.fillRect(x - tankWidth/2 - GRID_SIZE/10 + treadOffset, y - tankHeight/3, tankWidth + GRID_SIZE/5, tankHeight/4);
+          ctx.strokeRect(x - tankWidth/2 - GRID_SIZE/10 + treadOffset, y - tankHeight/3, tankWidth + GRID_SIZE/5, tankHeight/4);
+          
+          ctx.fillRect(x - tankWidth/2 - GRID_SIZE/10 - treadOffset, y + tankHeight/3 - tankHeight/4, tankWidth + GRID_SIZE/5, tankHeight/4);
+          ctx.strokeRect(x - tankWidth/2 - GRID_SIZE/10 - treadOffset, y + tankHeight/3 - tankHeight/4, tankWidth + GRID_SIZE/5, tankHeight/4);
           
           ctx.strokeStyle = '#555';
           for (let i = 0; i < 6; i++) {
@@ -263,6 +352,9 @@ const GameCanvas = forwardRef<HTMLCanvasElement, GameCanvasProps>(
           break;
           
         case UnitType.INFANTRY:
+          const legOffset = unit.moving ? Math.sin(Date.now() / 150) * (GRID_SIZE/10) : 0;
+          const armOffset = unit.moving ? Math.cos(Date.now() / 200) * (GRID_SIZE/15) : 0;
+          
           ctx.beginPath();
           ctx.arc(x, y - GRID_SIZE/3, GRID_SIZE/4, 0, Math.PI * 2);
           ctx.fill();
@@ -270,8 +362,8 @@ const GameCanvas = forwardRef<HTMLCanvasElement, GameCanvasProps>(
           
           ctx.beginPath();
           ctx.moveTo(x, y - GRID_SIZE/6);
-          ctx.lineTo(x - GRID_SIZE/3, y + GRID_SIZE/3);
-          ctx.lineTo(x + GRID_SIZE/3, y + GRID_SIZE/3);
+          ctx.lineTo(x - GRID_SIZE/3 + legOffset, y + GRID_SIZE/3);
+          ctx.lineTo(x + GRID_SIZE/3 - legOffset, y + GRID_SIZE/3);
           ctx.closePath();
           ctx.fill();
           ctx.stroke();
@@ -280,12 +372,12 @@ const GameCanvas = forwardRef<HTMLCanvasElement, GameCanvasProps>(
           
           ctx.beginPath();
           ctx.moveTo(x - GRID_SIZE/6, y - GRID_SIZE/8);
-          ctx.lineTo(x - GRID_SIZE/2, y);
+          ctx.lineTo(x - GRID_SIZE/2 - armOffset, y);
           ctx.stroke();
           
           ctx.beginPath();
           ctx.moveTo(x + GRID_SIZE/6, y - GRID_SIZE/8);
-          ctx.lineTo(x + GRID_SIZE/2, y);
+          ctx.lineTo(x + GRID_SIZE/2 + armOffset, y);
           ctx.stroke();
           
           ctx.fillStyle = '#333';
@@ -330,11 +422,25 @@ const GameCanvas = forwardRef<HTMLCanvasElement, GameCanvasProps>(
       const width = building.size.width * GRID_SIZE;
       const height = building.size.height * GRID_SIZE;
       
+      const isConstructing = building.constructionProgress !== undefined && building.constructionProgress < 100;
+      
       ctx.fillStyle = building.selected ? COLORS.SELECTED : COLORS.PLAYER;
       ctx.strokeStyle = '#000';
       ctx.lineWidth = 1;
       
       ctx.save();
+      
+      if (isConstructing && building.constructionProgress !== undefined) {
+        ctx.strokeStyle = '#555';
+        ctx.setLineDash([5, 3]);
+        ctx.strokeRect(x, y, width, height);
+        ctx.setLineDash([]);
+        
+        const progressHeight = height * (building.constructionProgress / 100);
+        ctx.beginPath();
+        ctx.rect(x, y + height - progressHeight, width, progressHeight);
+        ctx.clip();
+      }
       
       switch (building.type) {
         case BuildingType.COMMAND_CENTER:
@@ -671,13 +777,13 @@ const GameCanvas = forwardRef<HTMLCanvasElement, GameCanvasProps>(
       ctx.strokeRect(x, y + height + 2, healthBarWidth, healthBarHeight);
     };
     
-    const drawResource = (ctx: CanvasRenderingContext2D, resource: Resource) => {
+    const drawResource = (ctx: CanvasRenderingContext2D, resource: Resource, pulseScale: number = 1) => {
       const x = resource.position.x * GRID_SIZE;
       const y = resource.position.y * GRID_SIZE;
       
       ctx.save();
       
-      const resourceSize = GRID_SIZE * 0.8;
+      const resourceSize = GRID_SIZE * 0.8 * pulseScale;
       const positions = [
         { x: x, y: y },
         { x: x + resourceSize/3, y: y - resourceSize/3 },

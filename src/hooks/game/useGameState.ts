@@ -33,6 +33,7 @@ export interface Unit {
   targetResource?: string;
   isHarvesting?: boolean;
   carryingResource?: number;
+  moving?: boolean;
 }
 
 export interface Building {
@@ -345,11 +346,13 @@ export const useGameState = () => {
                   x: unit.position.x + dx * ratio,
                   y: unit.position.y + dy * ratio,
                 },
+                moving: true, // Set moving to true when unit is moving
               };
             } else {
               updatedUnit = {
                 ...updatedUnit,
                 targetPosition: undefined,
+                moving: false, // Set moving to false when unit stops
               };
             }
           }
