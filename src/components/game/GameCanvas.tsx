@@ -264,7 +264,14 @@ const GameCanvas = forwardRef<HTMLCanvasElement, GameCanvasProps>(
           ctx.fill();
           ctx.stroke();
           
+          ctx.fillStyle = '#87CEEB';
+          ctx.beginPath();
+          ctx.arc(x - bodyWidth/4, y - bodyHeight/2, bodyWidth/8, Math.PI, 0, true);
+          ctx.fill();
+          ctx.stroke();
+          
           const wheelRadius = GRID_SIZE/8;
+          const wheelRotation = unit.moving ? Date.now() / 100 : 0;
           const wheelPositions = [
             { x: x - bodyWidth/3, y: y + bodyHeight/2 },
             { x: x, y: y + bodyHeight/2 },
@@ -277,6 +284,22 @@ const GameCanvas = forwardRef<HTMLCanvasElement, GameCanvasProps>(
             ctx.arc(pos.x, pos.y, wheelRadius, 0, Math.PI * 2);
             ctx.fill();
             ctx.stroke();
+            
+            if (unit.moving) {
+              ctx.save();
+              ctx.translate(pos.x, pos.y);
+              ctx.rotate(wheelRotation);
+              
+              for (let i = 0; i < 4; i++) {
+                ctx.rotate(Math.PI / 2);
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(0, wheelRadius);
+                ctx.stroke();
+              }
+              
+              ctx.restore();
+            }
           });
           
           ctx.fillStyle = unit.selected ? COLORS.SELECTED : COLORS.PLAYER;
@@ -286,6 +309,17 @@ const GameCanvas = forwardRef<HTMLCanvasElement, GameCanvasProps>(
           ctx.lineTo(x + bodyWidth/2 + GRID_SIZE/3, y + GRID_SIZE/4);
           ctx.closePath();
           ctx.fill();
+          ctx.stroke();
+          
+          const clawOpen = unit.isHarvesting ? Math.sin(Date.now() / 200) * 0.5 + 0.5 : 0;
+          ctx.beginPath();
+          ctx.moveTo(x + bodyWidth/2 + GRID_SIZE/3, y - GRID_SIZE/4);
+          ctx.lineTo(x + bodyWidth/2 + GRID_SIZE/2, y - GRID_SIZE/4 - clawOpen * GRID_SIZE/4);
+          ctx.stroke();
+          
+          ctx.beginPath();
+          ctx.moveTo(x + bodyWidth/2 + GRID_SIZE/3, y + GRID_SIZE/4);
+          ctx.lineTo(x + bodyWidth/2 + GRID_SIZE/2, y + GRID_SIZE/4 + clawOpen * GRID_SIZE/4);
           ctx.stroke();
           
           if (unit.carryingResource && unit.carryingResource > 0) {
@@ -315,24 +349,31 @@ const GameCanvas = forwardRef<HTMLCanvasElement, GameCanvasProps>(
           ctx.fillStyle = '#333';
           
           const treadOffset = unit.moving ? Math.sin(Date.now() / 100) * (GRID_SIZE/15) : 0;
+          const treadWidth = tankWidth + GRID_SIZE/5;
+          const treadHeight = tankHeight/4;
           
-          ctx.fillRect(x - tankWidth/2 - GRID_SIZE/10 + treadOffset, y - tankHeight/3, tankWidth + GRID_SIZE/5, tankHeight/4);
-          ctx.strokeRect(x - tankWidth/2 - GRID_SIZE/10 + treadOffset, y - tankHeight/3, tankWidth + GRID_SIZE/5, tankHeight/4);
+          ctx.fillRect(x - tankWidth/2 - GRID_SIZE/10 + treadOffset, y - tankHeight/3, treadWidth, treadHeight);
+          ctx.strokeRect(x - tankWidth/2 - GRID_SIZE/10 + treadOffset, y - tankHeight/3, treadWidth, treadHeight);
           
-          ctx.fillRect(x - tankWidth/2 - GRID_SIZE/10 - treadOffset, y + tankHeight/3 - tankHeight/4, tankWidth + GRID_SIZE/5, tankHeight/4);
-          ctx.strokeRect(x - tankWidth/2 - GRID_SIZE/10 - treadOffset, y + tankHeight/3 - tankHeight/4, tankWidth + GRID_SIZE/5, tankHeight/4);
+          ctx.fillRect(x - tankWidth/2 - GRID_SIZE/10 - treadOffset, y + tankHeight/3 - treadHeight, treadWidth, treadHeight);
+          ctx.strokeRect(x - tankWidth/2 - GRID_SIZE/10 - treadOffset, y + tankHeight/3 - treadHeight, treadWidth, treadHeight);
           
           ctx.strokeStyle = '#555';
-          for (let i = 0; i < 6; i++) {
-            const tx = x - tankWidth/2 + i * tankWidth/5;
+          const treadSegments = 8;
+          const segmentWidth = treadWidth / treadSegments;
+          
+          for (let i = 0; i <= treadSegments; i++) {
+            const topTx = x - tankWidth/2 - GRID_SIZE/10 + treadOffset + i * segmentWidth;
+            const bottomTx = x - tankWidth/2 - GRID_SIZE/10 - treadOffset + i * segmentWidth;
+            
             ctx.beginPath();
-            ctx.moveTo(tx, y - tankHeight/3);
-            ctx.lineTo(tx, y - tankHeight/3 + tankHeight/4);
+            ctx.moveTo(topTx, y - tankHeight/3);
+            ctx.lineTo(topTx, y - tankHeight/3 + treadHeight);
             ctx.stroke();
             
             ctx.beginPath();
-            ctx.moveTo(tx, y + tankHeight/3 - tankHeight/4);
-            ctx.lineTo(tx, y + tankHeight/3);
+            ctx.moveTo(bottomTx, y + tankHeight/3 - treadHeight);
+            ctx.lineTo(bottomTx, y + tankHeight/3);
             ctx.stroke();
           }
           
@@ -342,12 +383,45 @@ const GameCanvas = forwardRef<HTMLCanvasElement, GameCanvasProps>(
           ctx.fill();
           ctx.stroke();
           
-          ctx.fillRect(x, y - tankHeight/3 - tankHeight/8, tankWidth/2, tankHeight/4);
-          ctx.strokeRect(x, y - tankHeight/3 - tankHeight/8, tankWidth/2, tankHeight/4);
+          const cannonAngle = unit.targetPosition 
+            ? Math.atan2(unit.targetPosition.y - unit.position.y, unit.targetPosition.x - unit.position.x) 
+            : 0;
+          
+          ctx.save();
+          ctx.translate(x, y - tankHeight/3);
+          ctx.rotate(cannonAngle);
+          
+          ctx.fillRect(0, -tankHeight/8, tankWidth/1.5, tankHeight/4);
+          ctx.strokeRect(0, -tankHeight/8, tankWidth/1.5, tankHeight/4);
           
           ctx.beginPath();
-          ctx.arc(x + tankWidth/2, y - tankHeight/3, tankHeight/8, 0, Math.PI * 2);
+          ctx.arc(tankWidth/1.5, 0, tankHeight/6, 0, Math.PI * 2);
           ctx.fill();
+          ctx.stroke();
+          
+          ctx.restore();
+          
+          ctx.fillStyle = '#555';
+          ctx.beginPath();
+          ctx.arc(x, y - tankHeight/3, tankHeight/6, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          
+          ctx.strokeStyle = '#000';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(x - tankWidth/4, y - tankHeight/3);
+          ctx.lineTo(x - tankWidth/4, y - tankHeight/3 - tankHeight);
+          ctx.stroke();
+          
+          ctx.fillStyle = '#e74c3c';
+          ctx.beginPath();
+          ctx.moveTo(x - tankWidth/4, y - tankHeight/3 - tankHeight);
+          ctx.lineTo(x - tankWidth/4, y - tankHeight/3 - tankHeight + tankHeight/3);
+          ctx.lineTo(x - tankWidth/4 + tankWidth/6, y - tankHeight/3 - tankHeight + tankHeight/6);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
           ctx.stroke();
           break;
           
