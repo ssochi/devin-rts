@@ -396,11 +396,75 @@ export const useGameState = () => {
                 prev.units.filter(u => u.id !== unit.id)
               );
               
-              updatedUnit = {
-                ...updatedUnit,
-                position: hasCollision ? unit.position : newPosition,
-                moving: true,
-              };
+              if (hasCollision) {
+                const horizontalPosition = {
+                  x: unit.position.x + dx * ratio,
+                  y: unit.position.y
+                };
+                
+                const horizontalCollision = checkCollision(
+                  { ...unit, position: horizontalPosition },
+                  prev.buildings,
+                  prev.units.filter(u => u.id !== unit.id)
+                );
+                
+                if (!horizontalCollision) {
+                  updatedUnit = {
+                    ...updatedUnit,
+                    position: horizontalPosition,
+                    moving: true,
+                  };
+                } else {
+                  const verticalPosition = {
+                    x: unit.position.x,
+                    y: unit.position.y + dy * ratio
+                  };
+                  
+                  const verticalCollision = checkCollision(
+                    { ...unit, position: verticalPosition },
+                    prev.buildings,
+                    prev.units.filter(u => u.id !== unit.id)
+                  );
+                  
+                  if (!verticalCollision) {
+                    updatedUnit = {
+                      ...updatedUnit,
+                      position: verticalPosition,
+                      moving: true,
+                    };
+                  } else {
+                    const newPath = findPath(
+                      unit.position,
+                      unit.targetPosition || currentWaypoint,
+                      prev.buildings,
+                      prev.units,
+                      unit.id
+                    );
+                    
+                    if (newPath.length > 0) {
+                      updatedUnit = {
+                        ...updatedUnit,
+                        path: smoothPath(newPath),
+                        pathIndex: 0,
+                        position: unit.position, // Stay in place this frame
+                        moving: true,
+                      };
+                    } else {
+                      updatedUnit = {
+                        ...updatedUnit,
+                        position: unit.position,
+                        moving: false,
+                      };
+                    }
+                  }
+                }
+              } else {
+                updatedUnit = {
+                  ...updatedUnit,
+                  position: newPosition,
+                  moving: true,
+                };
+              }
             }
           } 
           else if (unit.targetPosition) {
@@ -428,10 +492,74 @@ export const useGameState = () => {
                 prev.units.filter(u => u.id !== unit.id)
               );
               
-              updatedUnit = {
-                ...updatedUnit,
-                position: hasCollision ? unit.position : newPosition,
-                moving: true,
+              if (hasCollision) {
+                const horizontalPosition = {
+                  x: unit.position.x + dx * ratio,
+                  y: unit.position.y
+                };
+                
+                const horizontalCollision = checkCollision(
+                  { ...unit, position: horizontalPosition },
+                  prev.buildings,
+                  prev.units.filter(u => u.id !== unit.id)
+                );
+                
+                if (!horizontalCollision) {
+                  updatedUnit = {
+                    ...updatedUnit,
+                    position: horizontalPosition,
+                    moving: true,
+                  };
+                } else {
+                  const verticalPosition = {
+                    x: unit.position.x,
+                    y: unit.position.y + dy * ratio
+                  };
+                  
+                  const verticalCollision = checkCollision(
+                    { ...unit, position: verticalPosition },
+                    prev.buildings,
+                    prev.units.filter(u => u.id !== unit.id)
+                  );
+                  
+                  if (!verticalCollision) {
+                    updatedUnit = {
+                      ...updatedUnit,
+                      position: verticalPosition,
+                      moving: true,
+                    };
+                  } else {
+                    const newPath = findPath(
+                      unit.position,
+                      unit.targetPosition,
+                      prev.buildings,
+                      prev.units,
+                      unit.id
+                    );
+                    
+                    if (newPath.length > 0) {
+                      updatedUnit = {
+                        ...updatedUnit,
+                        path: smoothPath(newPath),
+                        pathIndex: 0,
+                        position: unit.position, // Stay in place this frame
+                        moving: true,
+                      };
+                    } else {
+                      updatedUnit = {
+                        ...updatedUnit,
+                        position: unit.position,
+                        moving: false,
+                      };
+                    }
+                  }
+                }
+              } else {
+                updatedUnit = {
+                  ...updatedUnit,
+                  position: newPosition,
+                  moving: true,
+                };
               };
             } else {
               updatedUnit = {
